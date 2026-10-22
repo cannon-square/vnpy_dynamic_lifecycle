@@ -38,7 +38,7 @@ from ..object import (
     TickData
 )
 from ..utility import load_json, save_json, get_digits, ZoneInfo
-from ..setting import SETTING_FILENAME, SETTING_HELP, SETTINGS
+from ..setting import SETTING_CHOICES, SETTING_FILENAME, SETTING_HELP, SETTINGS
 from ..locale import _
 from ..wechat import (
     Credentials,
@@ -1310,6 +1310,20 @@ class AboutDialog(QtWidgets.QDialog):
         self.setLayout(vbox)
 
 
+def describe_timezone(name: str) -> str:
+    """
+    Describe a time zone's current UTC offset and daylight saving status.
+    """
+    try:
+        now: datetime = datetime.now(ZoneInfo(name))
+    except (KeyError, ValueError):
+        return f"{name!r} is not a valid time zone"
+
+    offset: str = now.strftime("%z")
+    dst: str = "daylight saving time" if now.dst() else "standard time"
+    return f"Now {now:%H:%M} {now.tzname()} (UTC{offset[:3]}:{offset[3:]}), {dst}"
+
+
 class GlobalDialog(QtWidgets.QDialog):
     """
     Edit global configuration.
@@ -1321,9 +1335,32 @@ class GlobalDialog(QtWidgets.QDialog):
         """
         super().__init__()
 
-        self.widgets: dict[str, tuple[QtWidgets.QLineEdit, type]] = {}
+        self.widgets: dict[str, tuple[QtWidgets.QLineEdit | QtWidgets.QComboBox, type]] = {}
 
         self.init_ui()
+
+    def create_choice_widget(self, field_name: str, value: str, tooltip: str) -> QtWidgets.QComboBox:
+        """
+        Create a searchable dropdown for a setting listed in SETTING_CHOICES.
+        """
+        combo: QtWidgets.QComboBox = QtWidgets.QComboBox()
+        combo.addItems(SETTING_CHOICES[field_name])
+        combo.setEditable(True)
+        combo.setInsertPolicy(QtWidgets.QComboBox.InsertPolicy.NoInsert)
+        completer: QtWidgets.QCompleter | None = combo.completer()
+        if completer:
+            completer.setFilterMode(Qt.MatchFlag.MatchContains)
+            completer.setCompletionMode(QtWidgets.QCompleter.CompletionMode.PopupCompletion)
+        combo.setCurrentText(value)
+
+        if field_name.endswith(".timezone"):
+            def show_offset(name: str) -> None:
+                combo.setToolTip(f"{tooltip}\n{describe_timezone(name)}" if tooltip else describe_timezone(name))
+
+            combo.currentTextChanged.connect(show_offset)
+            show_offset(value)
+
+        return combo
 
     def init_ui(self) -> None:
         """
@@ -1342,14 +1379,18 @@ class GlobalDialog(QtWidgets.QDialog):
         field_value: object
         for field_name, field_value in settings.items():
             field_type: type = type(field_value)
-            widget: QtWidgets.QLineEdit = QtWidgets.QLineEdit(str(field_value))
+            placeholder, tooltip = SETTING_HELP.get(field_name, ("", ""))
 
-            label: QtWidgets.QLabel = QtWidgets.QLabel(f"{field_name} <{field_type.__name__}>")
-            if field_name in SETTING_HELP:
-                placeholder, tooltip = SETTING_HELP[field_name]
+            widget: QtWidgets.QLineEdit | QtWidgets.QComboBox
+            if field_name in SETTING_CHOICES:
+                widget = self.create_choice_widget(field_name, str(field_value), tooltip)
+            else:
+                widget = QtWidgets.QLineEdit(str(field_value))
                 widget.setPlaceholderText(placeholder)
                 widget.setToolTip(tooltip)
-                label.setToolTip(tooltip)
+
+            label: QtWidgets.QLabel = QtWidgets.QLabel(f"{field_name} <{field_type.__name__}>")
+            label.setToolTip(tooltip)
 
             form.addRow(label, widget)
             self.widgets[field_name] = (widget, field_type)
@@ -1375,12 +1416,25 @@ class GlobalDialog(QtWidgets.QDialog):
         """
         settings: dict = {}
         field_name: str
-        tp: tuple[QtWidgets.QLineEdit, type]
+        tp: tuple[QtWidgets.QLineEdit | QtWidgets.QComboBox, type]
         for field_name, tp in self.widgets.items():
-            widget: QtWidgets.QLineEdit
+            widget: QtWidgets.QLineEdit | QtWidgets.QComboBox
             field_type: type
             widget, field_type = tp
-            value_text: str = widget.text()
+
+            value_text: str
+            if isinstance(widget, QtWidgets.QComboBox):
+                value_text = widget.currentText().strip()
+                if value_text not in SETTING_CHOICES[field_name]:
+                    QtWidgets.QMessageBox.warning(
+                        self,
+                        _("注意"),
+                        f"{field_name}: {value_text!r} is not a valid choice.",
+                        QtWidgets.QMessageBox.StandardButton.Ok
+                    )
+                    return
+            else:
+                value_text = widget.text()
 
             if field_type is bool:
                 if value_text == "True":

@@ -5,10 +5,12 @@ Global setting of the trading platform.
 from logging import INFO
 from tzlocal import get_localzone_name
 
-from .utility import load_json
+from .utility import load_json, available_timezones
 
 
 SETTINGS: dict = {
+    "screener.timezone": get_localzone_name(),
+
     "font.family": "微软雅黑",
     "font.size": 12,
 
@@ -45,6 +47,17 @@ SETTING_HELP: dict[str, tuple[str, str]] = {
         "Contact email sent to sec.gov when downloading the ticker-to-company (CIK) file. "
         "The SEC requires one on every request."
     ),
+    "screener.timezone": (
+        "",
+        "Time zone for the screener's run times and dates. "
+        "Daylight saving is applied automatically."
+    ),
+}
+
+
+# Settings edited with a dropdown in the global settings dialog: key -> choices.
+SETTING_CHOICES: dict[str, list[str]] = {
+    "screener.timezone": sorted(available_timezones()),
 }
 
 
