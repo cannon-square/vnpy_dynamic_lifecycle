@@ -38,6 +38,16 @@ SETTINGS: dict = {
 }
 
 
+# Help shown in the global settings dialog: key -> (placeholder, tooltip).
+SETTING_HELP: dict[str, tuple[str, str]] = {
+    "sec.contact_email": (
+        "you@domain.com (for SEC)",
+        "Contact email sent to sec.gov when downloading the ticker-to-company (CIK) file. "
+        "The SEC requires one on every request."
+    ),
+}
+
+
 # Load global setting from json file.
 SETTING_FILENAME: str = "vt_setting.json"
 SETTINGS.update(load_json(SETTING_FILENAME))

@@ -38,7 +38,7 @@ from ..object import (
     TickData
 )
 from ..utility import load_json, save_json, get_digits, ZoneInfo
-from ..setting import SETTING_FILENAME, SETTINGS
+from ..setting import SETTING_FILENAME, SETTING_HELP, SETTINGS
 from ..locale import _
 from ..wechat import (
     Credentials,
@@ -1344,7 +1344,14 @@ class GlobalDialog(QtWidgets.QDialog):
             field_type: type = type(field_value)
             widget: QtWidgets.QLineEdit = QtWidgets.QLineEdit(str(field_value))
 
-            form.addRow(f"{field_name} <{field_type.__name__}>", widget)
+            label: QtWidgets.QLabel = QtWidgets.QLabel(f"{field_name} <{field_type.__name__}>")
+            if field_name in SETTING_HELP:
+                placeholder, tooltip = SETTING_HELP[field_name]
+                widget.setPlaceholderText(placeholder)
+                widget.setToolTip(tooltip)
+                label.setToolTip(tooltip)
+
+            form.addRow(label, widget)
             self.widgets[field_name] = (widget, field_type)
 
         button: QtWidgets.QPushButton = QtWidgets.QPushButton(_("确定"))
